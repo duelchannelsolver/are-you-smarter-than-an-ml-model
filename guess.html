@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Are YOU smarter than a machine learning model?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --field: #1d2327;      /* arena floor at night */
+    --panel: #283035;
+    --panel-2: #313a40;
+    --line: #435058;
+    --text: #edf1f2;
+    --muted: #a7b2b6;
+    --left: #e14a3f;       /* red cage */
+    --left-soft: #3a2a2b;
+    --right: #36a8e8;      /* blue cage */
+    --right-soft: #22323d;
+    --gold: #f7d31c;       /* support buttons */
+    --gold-ink: #1c1a0c;
+    --good: #5fd18b;
+    --bad: #ff6b5e;
+    --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --body: "Barlow", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background-color: var(--field);
+    /* faint floor tiles */
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 72px 72px;
+    color: var(--text);
+    font: 16px/1.45 var(--body);
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:disabled { cursor: default; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 20px 16px 32px; }
+
+  /* ---------------------------------------------------------------- header */
+  h1 {
+    margin: 0 0 14px;
+    font: 700 clamp(1.6rem, 4.2vw, 2.6rem)/1.05 var(--display);
+    letter-spacing: .01em;
+    text-align: center;
+  }
+  .hud {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .player { display: flex; align-items: center; gap: 10px; }
+  .player.ai { justify-content: flex-end; text-align: right; }
+  .player .who { font: 600 1.25rem/1 var(--display); }
+  .player .tally { color: var(--muted); font-size: .9rem; }
+  .player.out .who { text-decoration: line-through; color: var(--muted); }
+  .shield { width: 26px; height: 30px; flex: none; }
+  .shield path { fill: var(--gold); stroke: var(--gold-ink); stroke-width: 1.2; }
+  .shield.gone path { fill: none; stroke: var(--line); stroke-dasharray: 3 2; }
+  .round { text-align: center; }
+  .round b { display: block; font: 700 1.5rem/1 var(--display); }
+
+  .notice {
+    min-height: 1.5em;
+    margin: 0 0 10px;
+    text-align: center;
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* ----------------------------------------------------------------- arena */
+  .arena {
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) minmax(0, 1.5fr) minmax(170px, 1fr);
+    grid-template-areas: "left info right";
+    gap: 18px;
+    align-items: start;
+  }
+  .team { grid-area: left; display: grid; gap: 14px; padding: 12px; border-radius: 6px;
+          border: 2px solid transparent;
+          transition: border-color .25s, box-shadow .25s; }
+  .team.right { grid-area: right; }
+  .team.left  { background: linear-gradient(90deg, rgba(225,74,63,.14), transparent) border-box; }
+  .team.right { background: linear-gradient(270deg, rgba(54,168,232,.14), transparent) border-box; }
+  .team.winner { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(247,211,28,.18); }
+
+  .slot { display: flex; align-items: center; gap: 10px; }
+  .team.right .slot { flex-direction: row-reverse; }
+  .card {
+    position: relative;
+    width: 104px; height: 104px; flex: none;
+    border-radius: 6px;
+    border: 2px solid var(--line);
+    background: var(--left-soft);
+    display: grid; place-items: center;
+  }
+  .team.right .card { background: var(--right-soft); }
+  .card img { width: 92%; height: 92%; object-fit: contain; }
+  .card .initials { font: 700 1.6rem/1 var(--display); color: var(--muted); }
+  .card .count {
+    position: absolute; bottom: -10px; right: -12px;
+    font: 700 1.35rem/1 var(--display);
+    background: var(--field); border: 2px solid var(--line); border-radius: 4px;
+    padding: 2px 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .team.right .card .count { right: auto; left: -12px; }
+  .card.selected { border-color: var(--gold); }
+  .card.empty { border-style: dashed; background: transparent; }
+  .card.empty::after {   /* the game's slashed empty slot */
+    content: ""; width: 70%; height: 2px; background: var(--line); transform: rotate(45deg);
+  }
+  .slot .name { font: 600 1.05rem/1.15 var(--display); color: var(--muted); max-width: 9em; }
+  .team.right .slot .name { text-align: right; }
+
+  .lens {
+    width: 40px; height: 40px; flex: none;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    background: var(--panel);
+    display: grid; place-items: center;
+  }
+  .lens:hover:not(:disabled) { border-color: var(--gold); }
+  .lens svg { width: 20px; height: 20px; stroke: var(--text); fill: none; stroke-width: 2.4; stroke-linecap: round; }
+  .lens[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); }
+  .lens[aria-pressed="true"] svg { stroke: var(--gold-ink); }
+
+  /* ------------------------------------------------------------ info panel */
+  .info {
+    grid-area: info;
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 18px 20px 20px;
+    min-height: 360px;
+  }
+  .info .hint { color: var(--muted); margin: 40px 0 0; text-align: center; }
+  .info h2 { margin: 0 0 4px; font: 700 1.7rem/1.05 var(--display); }
+  .members { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .members button {
+    border: 1px solid var(--line); background: var(--panel-2); border-radius: 4px;
+    padding: 3px 9px; font-size: .9rem;
+  }
+  .members button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px 10px; margin: 14px 0 6px; }
+  .stats.minor { grid-template-columns: repeat(3, 1fr); margin-top: 6px; }
+  .stat dt { color: var(--muted); font-size: .8rem; }
+  .stat dd { margin: 0; font: 600 1.35rem/1.15 var(--display); font-variant-numeric: tabular-nums; }
+  .stats.minor .stat dd { font-size: 1.1rem; }
+  .ability { margin: 14px 0 0; max-width: 62ch; }
+  .ability.none { color: var(--muted); }
+  ul.ability { padding-left: 1.15em; display: grid; gap: 6px; }
+  ul.ability li::marker { color: var(--gold); }
+  ul.ability strong { color: var(--gold); font-weight: 600; }
+  .note { margin: 8px 0 0; color: var(--muted); font-size: .88rem; }
+
+  /* -------------------------------------------------------------- controls */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+    margin-top: 22px;
+  }
+  .pick {
+    justify-self: start;
+    min-width: 200px; padding: 14px 34px;
+    border: none;
+    background: var(--gold); color: var(--gold-ink);
+    font: 700 1.9rem/1 var(--display);
+    clip-path: polygon(0 0, 100% 0, 92% 100%, 0 100%);
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .pick.right { justify-self: end; clip-path: polygon(0 0, 100% 0, 100% 100%, 8% 100%); }
+  .pick svg { width: 22px; height: 22px; fill: currentColor; }
+  .pick:hover:not(:disabled) { filter: brightness(1.08); }
+  .pick:disabled { background: var(--panel-2); color: var(--muted); }
+  .pick.chosen { background: var(--gold); color: var(--gold-ink); }
+  .pick.chosen:disabled { background: var(--gold); color: var(--gold-ink); opacity: 1; }
+
+  .timer {
+    font: 700 clamp(2.6rem, 7vw, 4rem)/1 var(--display);
+    font-variant-numeric: tabular-nums;
+    min-width: 3.6ch; text-align: center;
+  }
+  .timer.urgent { color: var(--bad); }
+
+  /* ---------------------------------------------------------------- reveal */
+  .reveal {
+    margin: 18px auto 0;
+    max-width: 640px;
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: none;
+  }
+  .reveal.show { display: block; }
+  .reveal h3 { margin: 0 0 8px; font: 700 1.5rem/1.1 var(--display); }
+  .reveal ul { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+  .reveal li { display: flex; gap: 10px; align-items: baseline; }
+  .reveal .mark { font-weight: 700; width: 1.2em; flex: none; text-align: center; }
+  .reveal .good { color: var(--good); }
+  .reveal .bad { color: var(--bad); }
+  .reveal .saved { color: var(--gold); }
+  .next {
+    border: none; border-radius: 4px;
+    background: var(--gold); color: var(--gold-ink);
+    font: 700 1.25rem/1 var(--display);
+    padding: 12px 22px;
+  }
+
+  /* -------------------------------------------------------------- overlays */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(18, 22, 25, .9);
+    display: none; place-items: center;
+    padding: 16px;
+    z-index: 10;
+  }
+  .overlay.show { display: grid; }
+  .sheet {
+    background: var(--panel);
+    border-radius: 8px;
+    max-width: 560px; width: 100%;
+    padding: 26px 26px 24px;
+    border-top: 6px solid var(--gold);
+  }
+  .sheet.win  { border-top-color: var(--good); }
+  .sheet.loss { border-top-color: var(--bad); }
+  .sheet.tie  { border-top-color: var(--muted); }
+  .sheet h2 { margin: 0 0 10px; font: 700 2.3rem/1.05 var(--display); }
+  .sheet p { margin: 0 0 12px; }
+  .sheet ul { margin: 0 0 16px; padding-left: 1.2em; }
+  .sheet li { margin-bottom: 4px; }
+  .sheet .muted { color: var(--muted); font-size: .92rem; }
+  .sheet .big {
+    border: none; border-radius: 4px;
+    background: var(--gold); color: var(--gold-ink);
+    font: 700 1.5rem/1 var(--display);
+    padding: 14px 28px; margin-top: 6px;
+  }
+  .final { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 18px; }
+  .final div { background: var(--panel-2); border-radius: 6px; padding: 10px 14px; }
+  .final dt { color: var(--muted); font-size: .85rem; }
+  .final dd { margin: 0; font: 700 1.6rem/1.1 var(--display); }
+
+  /* ---------------------------------------------------------------- mobile */
+  @media (max-width: 760px) {
+    .arena { grid-template-columns: 1fr 1fr; grid-template-areas: "left right" "info info"; gap: 10px; }
+    .team { padding: 8px; gap: 12px; }
+    .slot { gap: 6px; }
+    .card { width: 72px; height: 72px; }
+    .card .count { font-size: 1.05rem; bottom: -8px; right: -8px; }
+    .team.right .card .count { left: -8px; }
+    .slot .name { display: none; }
+    .lens { width: 34px; height: 34px; }
+    .info { min-height: 0; padding: 14px; }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .controls { gap: 8px; }
+    .pick { min-width: 0; padding: 12px 16px; font-size: 1.4rem; }
+    .timer { font-size: 2.1rem; }
+    .hud { grid-template-columns: 1fr 1fr; }
+    .round { grid-column: 1 / -1; grid-row: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Are YOU smarter than a machine learning model?</h1>
+
+  <div class="hud">
+    <div class="player you" id="hudYou">
+      <svg class="shield" id="shieldYou" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1 L24 5 V14 C24 21 19 26 13 29 C7 26 2 21 2 14 V5 Z"/></svg>
+      <div><div class="who">You</div><div class="tally" id="tallyYou">0 correct</div></div>
+    </div>
+    <div class="round"><b id="roundLabel">Round 1</b></div>
+    <div class="player ai" id="hudAi">
+      <div><div class="who">AI</div><div class="tally" id="tallyAi">0 correct</div></div>
+      <svg class="shield" id="shieldAi" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1 L24 5 V14 C24 21 19 26 13 29 C7 26 2 21 2 14 V5 Z"/></svg>
+    </div>
+  </div>
+  <p class="notice" id="notice" aria-live="polite"></p>
+
+  <main class="arena">
+    <section class="team left" id="teamL" aria-label="Left team"></section>
+    <section class="info" id="info" aria-live="polite">
+      <p class="hint">Use a magnifying glass to see an enemy's stats and abilities.</p>
+    </section>
+    <section class="team right" id="teamR" aria-label="Right team"></section>
+  </main>
+
+  <div class="controls">
+    <button class="pick left" id="pickL" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5 7 12l7 7V5zm7 0-7 7 7 7V5z"/></svg>Left
+    </button>
+    <div class="timer" id="timer" role="timer" aria-label="Time left">00:30</div>
+    <button class="pick right" id="pickR" type="button">
+      Right<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5l7 7-7 7V5zM3 5l7 7-7 7V5z"/></svg>
+    </button>
+  </div>
+
+  <section class="reveal" id="reveal" aria-live="polite">
+    <h3 id="revealTitle"></h3>
+    <ul id="revealLines"></ul>
+    <button class="next" id="nextBtn" type="button">Next round</button>
+  </section>
+</div>
+
+<div class="overlay show" id="startScreen">
+  <div class="sheet">
+    <h2>Guess Royale: you against the AI</h2>
+    <p>Each round shows a real recorded Duel Channel match. Pick the side that won before the 30-second timer runs out. The AI guesses the same matches.</p>
+    <ul>
+      <li>Rounds 1–5: you both have a shield that absorbs one wrong guess.</li>
+      <li>From round 6 the shields are gone, and one wrong guess means elimination.</li>
+      <li>Run out of time and a side is picked for you at random.</li>
+      <li>Outlast the AI to win. If you're both eliminated in the same round, it's a tie.</li>
+    </ul>
+    <p class="muted" id="aiNote">Loading matches…</p>
+    <button class="big" id="startBtn" type="button" disabled>Start</button>
+  </div>
+</div>
+
+<div class="overlay" id="endScreen">
+  <div class="sheet" id="endSheet">
+    <h2 id="endTitle"></h2>
+    <p id="endText"></p>
+    <dl class="final">
+      <div><dt>Your correct picks</dt><dd id="endYou"></dd></div>
+      <div><dt>AI's correct picks</dt><dd id="endAi"></dd></div>
+    </dl>
+    <button class="big" id="againBtn" type="button">Play again</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const DATA_URL = 'data/guess_data.json';
+  const SPRITE = (name) => 'sprites/' + encodeURIComponent(name) + '.png';
+  const ROUND_SECONDS = 30;
+  const SHIELD_LAST_ROUND = 5;
+  const AUTO_NEXT_SECONDS = 10;     // after a reveal, move on by itself
+
+  // Which recorded matches can appear in which rounds: a and b are the number
+  // of different enemies on each team.
+  const BUCKETS = [
+    { upTo: 3,        fits: (a, b) => a === 1 && b === 1 },
+    { upTo: 5,        fits: (a, b) => a <= 2 && b <= 2 },
+    { upTo: 7,        fits: (a, b) => a === 2 && b === 2 },
+    { upTo: 9,        fits: (a, b) => a >= 2 && b >= 2 },
+    { upTo: Infinity, fits: (a, b) => a === 3 && b === 3 },
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  let DATA = null;
+  let members = [];      // match indices per bucket
+  let pools = [];        // shuffled draw piles per bucket, for the current game
+  let used = new Set();  // matches already shown this game
+  let game = null;
+  let timerId = null;
+  let autoId = null;
+
+  // ------------------------------------------------------------------ setup
+  fetch(DATA_URL, { cache: 'no-cache' })
+    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then((d) => {
+      DATA = d;
+      members = BUCKETS.map((b) => d.matches.map((m, i) => (b.fits(m.l.length, m.r.length) ? i : -1)).filter((i) => i >= 0));
+      $('aiNote').textContent = `${d.matches.length} recorded matches. On these, the AI picks the winner ` +
+        `${Math.round(100 * d.aiAccuracy)}% of the time, and it never saw a match's result before guessing it.`;
+      $('startBtn').disabled = false;
+      $('startBtn').focus();
+    })
+    .catch((err) => {
+      $('aiNote').textContent = `Couldn't load ${DATA_URL} (${err.message}). Run "node make_guess_data.js" and upload the file it makes.`;
+    });
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  const bucketIndex = (round) => BUCKETS.findIndex((b) => round <= b.upTo);
+
+  // Draws a match for this round's bucket without replacement. A match can sit
+  // in several buckets, so anything already shown this game is skipped. If a
+  // bucket runs dry (only in very long games), its matches are reshuffled.
+  function drawMatch(round) {
+    const b = bucketIndex(round);
+    for (let pass = 0; pass < 2; pass++) {
+      while (pools[b].length) {
+        const i = pools[b].pop();
+        if (!used.has(i)) { used.add(i); return i; }
+      }
+      pools[b] = shuffle(members[b].slice());
+      for (const i of members[b]) used.delete(i);
+    }
+    return members[b][0];
+  }
+
+  // ------------------------------------------------------------------- game
+  function newGame() {
+    clearInterval(autoId);
+    clearInterval(timerId);
+    pools = members.map((m) => shuffle(m.slice()));
+    used = new Set();
+    game = {
+      round: 0,
+      you: { shield: true, out: false, correct: 0 },
+      ai: { shield: true, out: false, correct: 0 },
+      match: null, picked: false,
+    };
+    $('startScreen').classList.remove('show');
+    $('endScreen').classList.remove('show');
+    nextRound();
+  }
+
+  function nextRound() {
+    game.round++;
+    game.picked = false;
+    const notes = [];
+    if (game.round === SHIELD_LAST_ROUND + 1) {
+      if (game.you.shield || game.ai.shield) notes.push('Shields are gone. From now on, one wrong guess ends it.');
+      game.you.shield = false; game.ai.shield = false;
+    }
+    game.match = DATA.matches[drawMatch(game.round)];
+    $('notice').textContent = notes.join(' ');
+    renderHud();
+    renderTeams();
+    showInfo(null);
+    $('reveal').classList.remove('show');
+    for (const id of ['teamL', 'teamR']) $(id).classList.remove('winner');
+    for (const id of ['pickL', 'pickR']) { $(id).disabled = false; $(id).classList.remove('chosen'); }
+    startTimer();
+  }
+
+  function startTimer() {
+    clearInterval(timerId);
+    const deadline = Date.now() + ROUND_SECONDS * 1000;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      $('timer').textContent = '00:' + String(left).padStart(2, '0');
+      $('timer').classList.toggle('urgent', left <= 10);
+      if (left <= 0) {
+        clearInterval(timerId);
+        choose(Math.random() < 0.5 ? 'L' : 'R', true);
+      }
+    };
+    tick();
+    timerId = setInterval(tick, 250);
+  }
+
+  function choose(side, timedOut) {
+    if (!game || game.picked) return;
+    game.picked = true;
+    clearInterval(timerId);
+    const m = game.match;
+    const aiSide = m.p >= 0.5 ? 'L' : 'R';
+    const aiConf = Math.round(100 * (aiSide === 'L' ? m.p : 1 - m.p));
+
+    $('pickL').disabled = true; $('pickR').disabled = true;
+    $(side === 'L' ? 'pickL' : 'pickR').classList.add('chosen');
+    $(m.w === 'L' ? 'teamL' : 'teamR').classList.add('winner');
+
+    const lines = [];
+    const settle = (who, pick, label, extra) => {
+      const right = pick === m.w;
+      let cls, mark, text;
+      if (right) {
+        who.correct++;
+        cls = 'good'; mark = '✓'; text = `${label} ${sideName(pick)}${extra}. Correct.`;
+      } else if (who.shield && game.round <= SHIELD_LAST_ROUND) {
+        who.shield = false;
+        cls = 'saved'; mark = '◆'; text = `${label} ${sideName(pick)}${extra}. Wrong, but the shield absorbed it.`;
+      } else {
+        who.out = true;
+        cls = 'bad'; mark = '✗'; text = `${label} ${sideName(pick)}${extra}. Wrong, eliminated.`;
+      }
+      lines.push({ cls, mark, text });
+    };
+    settle(game.you, side, timedOut ? 'Time ran out, so you got a random pick:' : 'You picked', '');
+    settle(game.ai, aiSide, 'The AI picked', ` (${aiConf}% sure)`);
+
+    $('revealTitle').textContent = `${sideName(m.w)} side won.`;
+    $('revealLines').textContent = '';
+    for (const l of lines) {
+      const li = document.createElement('li');
+      const mk = document.createElement('span');
+      mk.className = 'mark ' + l.cls; mk.textContent = l.mark; mk.setAttribute('aria-hidden', 'true');
+      const tx = document.createElement('span');
+      tx.textContent = l.text;
+      li.append(mk, tx);
+      $('revealLines').appendChild(li);
+    }
+    const over = game.you.out || game.ai.out;
+    $('reveal').classList.add('show');
+    startAutoNext(over ? 'See the result' : 'Next round');
+    renderHud();
+    $('nextBtn').focus();
+  }
+
+  const sideName = (s) => (s === 'L' ? 'Left' : 'Right');
+
+  // Counts down on the button, then advances unless the player clicked first.
+  function startAutoNext(label) {
+    clearInterval(autoId);
+    const deadline = Date.now() + AUTO_NEXT_SECONDS * 1000;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      $('nextBtn').textContent = `${label} (${left})`;
+      if (left <= 0) advance();
+    };
+    tick();
+    autoId = setInterval(tick, 250);
+  }
+
+  function advance() {
+    clearInterval(autoId);
+    if (!game || !game.picked) return;
+    if (game.you.out || game.ai.out) finish(); else nextRound();
+  }
+
+  function finish() {
+    const g = game;
+    const outcome = g.you.out && g.ai.out ? 'tie' : g.you.out ? 'loss' : 'win';
+    const sheet = $('endSheet');
+    sheet.className = 'sheet ' + outcome;
+    const rounds = g.round === 1 ? '1 round' : g.round + ' rounds';
+    if (outcome === 'win') {
+      $('endTitle').textContent = 'You beat the machine';
+      $('endText').textContent = `The AI was eliminated in round ${g.round} and you were still standing.`;
+    } else if (outcome === 'loss') {
+      $('endTitle').textContent = 'The machine wins';
+      $('endText').textContent = `You were eliminated in round ${g.round} and the AI survived.`;
+    } else {
+      $('endTitle').textContent = "It's a tie";
+      $('endText').textContent = `You were both eliminated in round ${g.round}.`;
+    }
+    $('endYou').textContent = `${g.you.correct} of ${rounds}`;
+    $('endAi').textContent = `${g.ai.correct} of ${rounds}`;
+    $('endScreen').classList.add('show');
+    $('againBtn').focus();
+  }
+
+  // ------------------------------------------------------------- rendering
+  function renderHud() {
+    $('roundLabel').textContent = 'Round ' + game.round;
+    for (const [who, key] of [[game.you, 'You'], [game.ai, 'Ai']]) {
+      $('shield' + key).classList.toggle('gone', !who.shield);
+      $('hud' + key).classList.toggle('out', who.out);
+      $('tally' + key).textContent = who.correct + ' correct';
+    }
+  }
+
+  function renderTeams() {
+    fillTeam($('teamL'), game.match.l, 'L');
+    fillTeam($('teamR'), game.match.r, 'R');
+  }
+
+  function fillTeam(el, team, side) {
+    el.textContent = '';
+    for (let i = 0; i < 3; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      const card = document.createElement('div');
+      card.className = 'card';
+      if (!team[i]) {
+        card.classList.add('empty');
+        slot.appendChild(card);
+        el.appendChild(slot);
+        continue;
+      }
+      const [name, count] = team[i];
+      card.dataset.key = side + i;
+      const img = new Image();
+      img.alt = name;
+      img.src = SPRITE(name);
+      img.onerror = () => {
+        const s = document.createElement('span');
+        s.className = 'initials';
+        s.textContent = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+        img.replaceWith(s);
+      };
+      const badge = document.createElement('span');
+      badge.className = 'count';
+      badge.textContent = '×' + count;
+      card.append(img, badge);
+
+      const lens = document.createElement('button');
+      lens.type = 'button';
+      lens.className = 'lens';
+      lens.dataset.key = side + i;
+      lens.setAttribute('aria-pressed', 'false');
+      lens.setAttribute('aria-label', 'Show stats for ' + name);
+      lens.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/></svg>';
+      lens.addEventListener('click', () => showInfo(name, side + i));
+
+      const label = document.createElement('span');
+      label.className = 'name';
+      label.textContent = name;
+
+      slot.append(card, lens, label);
+      el.appendChild(slot);
+    }
+  }
+
+  function showInfo(name, key) {
+    for (const el of document.querySelectorAll('.card, .lens')) {
+      const on = !!key && el.dataset.key === key;
+      if (el.classList.contains('card')) el.classList.toggle('selected', on);
+      else el.setAttribute('aria-pressed', String(on));
+    }
+    const box = $('info');
+    box.textContent = '';
+    if (!name) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = "Use a magnifying glass to see an enemy's stats and abilities.";
+      box.appendChild(p);
+      return;
+    }
+    const units = DATA.enemies[name] || [];
+    const h = document.createElement('h2');
+    h.textContent = name;
+    box.appendChild(h);
+    if (!units.length) {
+      const p = document.createElement('p');
+      p.className = 'ability none';
+      p.textContent = 'No stats recorded for this enemy.';
+      box.appendChild(p);
+      return;
+    }
+    const body = document.createElement('div');
+    if (units.length > 1) {          // groups such as the Chivalrous Trio
+      const tabs = document.createElement('div');
+      tabs.className = 'members';
+      units.forEach((u, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = u.name;
+        b.setAttribute('aria-pressed', String(i === 0));
+        b.addEventListener('click', () => {
+          for (const x of tabs.children) x.setAttribute('aria-pressed', String(x === b));
+          renderUnit(body, u);
+        });
+        tabs.appendChild(b);
+      });
+      box.appendChild(tabs);
+    }
+    box.appendChild(body);
+    renderUnit(body, units[0]);
+  }
+
+  const fmt = (v) => (v === null || v === undefined || v === '' ? '–' : String(v));
+
+  function renderUnit(body, u) {
+    body.textContent = '';
+    const grid = (pairs, minor) => {
+      const dl = document.createElement('dl');
+      dl.className = 'stats' + (minor ? ' minor' : '');
+      for (const [k, v] of pairs) {
+        const d = document.createElement('div');
+        d.className = 'stat';
+        const dt = document.createElement('dt'); dt.textContent = k;
+        const dd = document.createElement('dd'); dd.textContent = fmt(v);
+        d.append(dt, dd);
+        dl.appendChild(d);
+      }
+      return dl;
+    };
+    body.appendChild(grid([['ATK', u.atk], ['HP', u.hp], ['DEF', u.def], ['RES', u.res], ['Attack interval', u.interval]]));
+    body.appendChild(grid([['Move speed', u.ms], ['Range', u.range], ['Damage', u.damage]], true));
+    const items = u.ability ? abilityItems(u.ability) : null;
+    if (items) {
+      const ul = document.createElement('ul');
+      ul.className = 'ability';
+      for (const it of items) {
+        const li = document.createElement('li');
+        if (it.name) {
+          const b = document.createElement('strong');
+          b.textContent = it.name;
+          li.append(b, ' ');
+        }
+        li.append(it.text);
+        ul.appendChild(li);
+      }
+      body.appendChild(ul);
+    } else {
+      const ab = document.createElement('p');
+      ab.className = 'ability' + (u.ability ? '' : ' none');
+      ab.textContent = u.ability || 'No special abilities.';
+      body.appendChild(ab);
+    }
+    if (u.note) {
+      const n = document.createElement('p');
+      n.className = 'note';
+      n.textContent = u.note;
+      body.appendChild(n);
+    }
+  }
+
+  // Splits a long ability text into list items: one per general sentence, and
+  // one per named skill ("[Heavensfall] ..."), which keeps its sentences up to
+  // and including its "Cooldown" or "Can only be used" line. Returns null for
+  // short texts (under three sentences, or two short ones), which read better
+  // as plain text.
+  function abilityItems(text) {
+    const sentences = String(text)
+      .split(/\s*(?=\[)/)                         // a skill name starts a new piece
+      .flatMap((part) => part.split(/(?<=\.)\s+(?=[A-Z\[])/))
+      .map((x) => x.trim().replace(/;$/, '.'))
+      .filter(Boolean);
+    const named = sentences.some((x) => x.startsWith('['));
+    if (!named && sentences.length < 3 && !(sentences.length === 2 && text.length > 220)) return null;
+    const items = [];
+    let skill = null;
+    for (const x of sentences) {
+      const m = /^\[([^\]]+)\]\s*(.*)$/.exec(x);
+      if (m) {
+        skill = { name: m[1], text: m[2] };
+        items.push(skill);
+      } else if (skill) {
+        skill.text += (skill.text ? ' ' : '') + x;
+      } else {
+        items.push({ name: null, text: x });
+      }
+      if (skill && /^(Cooldown|Can only be used)/.test(x)) skill = null;
+    }
+    return items;
+  }
+
+  // ----------------------------------------------------------------- wiring
+  $('startBtn').addEventListener('click', newGame);
+  $('againBtn').addEventListener('click', newGame);
+  $('pickL').addEventListener('click', () => choose('L', false));
+  $('pickR').addEventListener('click', () => choose('R', false));
+  $('nextBtn').addEventListener('click', advance);
+  document.addEventListener('keydown', (ev) => {
+    if (!game || game.picked || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    if (document.querySelector('.overlay.show')) return;
+    if (ev.key === 'ArrowLeft') { ev.preventDefault(); choose('L', false); }
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); choose('R', false); }
+  });
+
+  // for testing from the console
+  window.__guess = { get game() { return game; }, BUCKETS, members: () => members, drawMatch, choose, showInfo, abilityItems };
+})();
+</script>
+</body>
+</html>
